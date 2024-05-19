@@ -4,7 +4,7 @@ Observability adalah proses pembuatan sebuah sistem internal lebih transparant. 
 
 1. Metrics
 2. Logs
-3. Metrics
+3. Tracing
 
 Observability mengacu pada kemampuan untuk monitor, mengukur dan mengerti keadaan dalam suatu sistem atau aplikasi. Dalam modern sistem software dan cloud computing, Observability memainkan peran yang sangat penting untuk memastikan reliability, performance, dan keamanan aplikasi dan infrastruktur. Pentingnya observability telah berkembang karena meningkatnya software sistem, adopsi layanan microservice dan meningkatnya ketergantungan distributed architectures.
 
