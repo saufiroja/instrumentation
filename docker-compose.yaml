@@ -1,0 +1,113 @@
+version: '3.8'
+services:
+  # Jaeger
+  jaeger-all-in-one:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger-instrumentation
+    restart: always
+    ports:
+      - '16686:16686'
+      - '14268'
+      - '14250'
+    networks:
+      - demo-instrumentation
+
+  # Zipkin
+  zipkin-all-in-one:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin-instrumentation
+    environment:
+      - JAVA_OPTS=-Xms1024m -Xmx1024m -XX:+ExitOnOutOfMemoryError
+    restart: always
+    ports:
+      - '9411:9411'
+    networks:
+      - demo-instrumentation
+
+  # Collector
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: otel-collector-instrumentation
+    restart: always
+    command: ['--config=/etc/otel-collector-config.yaml', '']
+    volumes:
+      - ./observability/otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - '1888:1888' # pprof extension
+      - '8888:8888' # Prometheus metrics exposed by the collector
+      - '8889:8889' # Prometheus exporter metrics
+      - '13133:13133' # health_check extension
+      - '4317:4317' # OTLP gRPC receiver
+      - '55679:55679' # zpages extension
+    depends_on:
+      - jaeger-all-in-one
+      - zipkin-all-in-one
+    networks:
+      - demo-instrumentation
+
+  demo-server:
+    container_name: demo-server-instrumentation
+    image: demo-server-instrumentation:1.0.4
+    build:
+      dockerfile: Dockerfile
+      context: .
+    restart: always
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+    ports:
+      - '8080:8080'
+    depends_on:
+      - otel-collector
+    networks:
+      - demo-instrumentation
+
+  prometheus:
+    container_name: prometheus-instrumentation
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - '9090:9090'
+    networks:
+      - demo-instrumentation
+
+  grafana:
+    container_name: grafana-instrumentation
+    image: grafana/grafana:latest
+    restart: always
+    depends_on:
+      - prometheus
+      - loki
+    ports:
+      - '3000:3000'
+    networks:
+      - demo-instrumentation
+
+  loki:
+    container_name: loki-instrumentation
+    image: grafana/loki:latest
+    ports:
+      - '3100:3100'
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./observability/loki/loki-config.yaml:/mnt/loki-local-config.yaml
+    networks:
+      - demo-instrumentation
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail-instrumentation
+    volumes:
+      - ./observability/promtail/promtail-config.yaml:/etc/promtail/docker-config.yaml
+      - /var/log:/var/log
+    command: -config.file=/etc/promtail/docker-config.yaml
+    depends_on:
+      - loki
+    networks:
+      - demo-instrumentation
+
+networks:
+  demo-instrumentation:
+    name: demo-instrumentation
+    driver: bridge
